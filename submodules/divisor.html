@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Outline Splitter</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- PDF Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- Setup PDF.js Worker ---
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- Error Boundary Component ---
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                console.error("Uncaught error:", error, errorInfo);
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center p-4">
+                            <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full border border-red-200">
+                                <h2 className="text-xl font-bold text-red-600 mb-2">Something went wrong</h2>
+                                <p className="text-gray-600 mb-4">The application encountered an unexpected error.</p>
+                                <div className="bg-gray-100 p-3 rounded text-sm font-mono text-red-800 mb-4 overflow-auto max-h-40">
+                                    {this.state.error && this.state.error.toString()}
+                                </div>
+                                <button 
+                                    onClick={() => window.location.reload()} 
+                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                    Reload Page
+                                </button>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
+        // --- Components ---
+
+        // Fixed Icon Component to prevent React/DOM conflicts
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const ref = useRef(null);
+
+            useEffect(() => {
+                if (window.lucide && ref.current) {
+                    const iconElement = document.createElement('i');
+                    iconElement.setAttribute('data-lucide', name);
+                    
+                    ref.current.innerHTML = '';
+                    ref.current.appendChild(iconElement);
+                    
+                    window.lucide.createIcons({
+                        root: ref.current,
+                        attrs: { width: size, height: size, class: className }
+                    });
+                }
+            }, [name, size, className]);
+
+            return <span ref={ref} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
+        };
+
+        const OutlineNode = ({ node, onToggle, selectedIds, depth = 0 }) => {
+            const isSelected = selectedIds.has(node.id);
+            const hasChildren = node.items && node.items.length > 0;
+            const [expanded, setExpanded] = useState(false);
+
+            const handleCheckboxChange = (e) => {
+                onToggle(node, e.target.checked);
+            };
+
+            return (
+                <div className="select-none">
+                    <div 
+                        className={`flex items-center py-2 px-2 hover:bg-blue-50 rounded-lg transition-colors ${isSelected ? 'bg-blue-100' : ''}`}
+                        style={{ paddingLeft: `${depth * 20 + 8}px` }}
+                    >
+                        <div className="mr-2 flex items-center">
+                            {hasChildren ? (
+                                <button 
+                                    type="button"
+                                    onClick={() => setExpanded(!expanded)} 
+                                    className="p-1 hover:bg-gray-200 rounded text-gray-500"
+                                >
+                                    <Icon name={expanded ? "chevron-down" : "chevron-right"} size={14} />
+                                </button>
+                            ) : (
+                                <div className="w-6"></div> 
+                            )}
+                        </div>
+                        
+                        <input 
+                            type="checkbox" 
+                            checked={isSelected} 
+                            onChange={handleCheckboxChange}
+                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3"
+                        />
+                        
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate" title={node.title}>
+                                {node.title}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                Page {node.pageNumber + 1}
+                            </p>
+                        </div>
+                    </div>
+
+                    {hasChildren && expanded && (
+                        <div>
+                            {node.items.map((child, idx) => (
+                                <OutlineNode 
+                                    key={child.id || idx} 
+                                    node={child} 
+                                    onToggle={onToggle} 
+                                    selectedIds={selectedIds} 
+                                    depth={depth + 1} 
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [file, setFile] = useState(null);
+            const [pdfData, setPdfData] = useState(null); 
+            const [outline, setOutline] = useState([]);
+            const [flatOutline, setFlatOutline] = useState([]); 
+            const [selectedIds, setSelectedIds] = useState(new Set());
+            const [status, setStatus] = useState('idle'); 
+            const [statusMsg, setStatusMsg] = useState('');
+            const [totalPages, setTotalPages] = useState(0);
+
+            // --- Handlers ---
+
+            const handleFileUpload = async (e) => {
+                const uploadedFile = e.target.files[0];
+                if (!uploadedFile || uploadedFile.type !== 'application/pdf') {
+                    setStatus('error');
+                    setStatusMsg('Please upload a valid PDF file.');
+                    return;
+                }
+
+                setFile(uploadedFile);
+                setStatus('parsing');
+                setStatusMsg('Reading PDF structure...');
+                setOutline([]);
+                setSelectedIds(new Set());
+
+                try {
+                    const arrayBuffer = await uploadedFile.arrayBuffer();
+                    setPdfData(arrayBuffer);
+
+                    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer.slice(0) });
+                    const pdfDoc = await loadingTask.promise;
+                    setTotalPages(pdfDoc.numPages);
+
+                    const rawOutline = await pdfDoc.getOutline();
+                    
+                    if (!rawOutline || rawOutline.length === 0) {
+                        setStatus('error');
+                        setStatusMsg('No Table of Contents (Outline) found in this PDF.');
+                        return;
+                    }
+
+                    const processedOutline = await processOutline(rawOutline, pdfDoc);
+                    setOutline(processedOutline);
+                    
+                    const flat = flattenOutline(processedOutline);
+                    setFlatOutline(flat);
+
+                    setStatus('idle');
+                } catch (err) {
+                    console.error(err);
+                    setStatus('error');
+                    setStatusMsg('Failed to parse PDF. ' + err.message);
+                }
+            };
+
+            const processOutline = async (items, doc, prefix = 'id', parentNode = null) => {
+                const results = [];
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    let pageIndex = -1;
+
+                    try {
+                        if (item.dest) {
+                            const dest = typeof item.dest === 'string' 
+                                ? await doc.getDestination(item.dest) 
+                                : item.dest;
+                            
+                            if (dest) {
+                                const ref = dest[0]; 
+                                pageIndex = await doc.getPageIndex(ref); 
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Could not resolve page for", item.title);
+                    }
+
+                    const newNode = {
+                        title: item.title,
+                        pageNumber: pageIndex, 
+                        id: `${prefix}-${i}`,
+                        items: [],
+                        parent: parentNode 
+                    };
+
+                    if (item.items && item.items.length > 0) {
+                        newNode.items = await processOutline(item.items, doc, `${prefix}-${i}`, newNode);
+                    }
+
+                    results.push(newNode);
+                }
+                return results;
+            };
+
+            const flattenOutline = (nodes) => {
+                let flat = [];
+                nodes.forEach(node => {
+                    flat.push(node);
+                    if (node.items && node.items.length > 0) {
+                        flat = flat.concat(flattenOutline(node.items));
+                    }
+                });
+                return flat.sort((a, b) => a.pageNumber - b.pageNumber);
+            };
+
+            const toggleSelection = (node, isChecked) => {
+                const newSet = new Set(selectedIds);
+                // DISABLED RECURSIVE SELECTION
+                // Now, if you check a Parent, only the parent is checked.
+                // The extraction logic handles including the children's pages automatically.
+                if (isChecked) {
+                    newSet.add(node.id);
+                } else {
+                    newSet.delete(node.id);
+                }
+                setSelectedIds(newSet);
+            };
+
+            const sanitizeFilename = (name) => {
+                // MODIFICATION: Accepte les accents et espaces.
+                // Remplace uniquement les caractères interdits dans les systèmes de fichiers : \ / : * ? " < > |
+                return (name || "Section")
+                    .replace(/[\\/:*?"<>|]/g, '_') // Remplace les caractères interdits
+                    .replace(/\t/g, ' ')            // Remplace les tabulations par des espaces
+                    .trim()                         // Retire les espaces au début et à la fin
+                    .substring(0, 100);             // Limite légèrement plus longue pour les titres
+            };
+
+            const handleSplit = async () => {
+                if (selectedIds.size === 0) {
+                    alert("Please select at least one section.");
+                    return;
+                }
+
+                if (!window.PDFLib || !window.JSZip || !window.saveAs) {
+                    setStatus('error');
+                    setStatusMsg('Required libraries failed to load.');
+                    return;
+                }
+
+                setStatus('processing');
+                setStatusMsg('Initializing PDF engine...');
+
+                try {
+                    await new Promise(r => setTimeout(r, 50));
+
+                    // Helper to check lineage for range calculation
+                    const isDescendant = (child, ancestor) => {
+                        let curr = child.parent;
+                        while (curr) {
+                            if (curr === ancestor) return true;
+                            curr = curr.parent;
+                        }
+                        return false;
+                    };
+
+                    const { PDFDocument } = window.PDFLib;
+                    const zip = new JSZip();
+                    
+                    const srcDoc = await PDFDocument.load(pdfData.slice(0));
+                    
+                    const selectedNodes = flatOutline.filter(n => selectedIds.has(n.id));
+                    let filesCreated = 0;
+
+                    setStatusMsg(`Extracting ${selectedNodes.length} sections...`);
+
+                    for (let i = 0; i < selectedNodes.length; i++) {
+                        const node = selectedNodes[i];
+                        if (node.pageNumber === -1) continue; 
+
+                        const startPage = node.pageNumber;
+                        const currentIndex = flatOutline.findIndex(n => n.id === node.id);
+                        
+                        let endPage = totalPages; 
+                        
+                        // Look ahead logic: Find next node that is NOT a descendant
+                        // This allows Parent to swallow children pages
+                        for (let j = currentIndex + 1; j < flatOutline.length; j++) {
+                            const nextNode = flatOutline[j];
+                            if (nextNode.pageNumber <= startPage) continue;
+                            if (isDescendant(nextNode, node)) continue; // SKIP children in end page calculation
+                            endPage = nextNode.pageNumber;
+                            break;
+                        }
+
+                        if (startPage >= endPage) continue;
+
+                        const subDoc = await PDFDocument.create();
+                        const pageIndices = [];
+                        for(let p = startPage; p < endPage; p++) {
+                            pageIndices.push(p);
+                        }
+
+                        const copiedPages = await subDoc.copyPages(srcDoc, pageIndices);
+                        copiedPages.forEach(page => subDoc.addPage(page));
+
+                        const pdfBytes = await subDoc.save();
+                        
+                        // Folder Path Logic
+                        let folderPath = "";
+                        let curr = node.parent;
+                        while (curr) {
+                            const parentTitle = sanitizeFilename(curr.title);
+                            folderPath = parentTitle + "/" + folderPath;
+                            curr = curr.parent;
+                        }
+
+                        const safeTitle = sanitizeFilename(node.title);
+                        zip.file(folderPath + safeTitle + ".pdf", pdfBytes);
+                        
+                        filesCreated++;
+                    }
+
+                    if (filesCreated === 0) {
+                        throw new Error("Could not extract any valid pages.");
+                    }
+
+                    setStatusMsg('Compressing ZIP file...');
+                    const content = await zip.generateAsync({ type: "blob" });
+                    
+                    setStatusMsg('Downloading...');
+                    window.saveAs(content, "extracted_sections_smart.zip");
+                    
+                    setStatus('success');
+                    setStatusMsg('Download started!');
+                    setTimeout(() => setStatus('idle'), 3000);
+
+                } catch (err) {
+                    console.error(err);
+                    setStatus('error');
+                    setStatusMsg('Error during processing: ' + err.message);
+                }
+            };
+
+            // --- Render ---
+
+            if (!file) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4">
+                        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-gray-100">
+                            <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Icon name="file-up" className="text-blue-600" size={32} />
+                            </div>
+                            <h1 className="text-2xl font-bold text-gray-900 mb-2">Upload PDF</h1>
+                            <p className="text-gray-500 mb-8">
+                                Drag and drop your PDF here to extract its Table of Contents.
+                            </p>
+                            
+                            <label className="block w-full">
+                                <span className="sr-only">Choose file</span>
+                                <input 
+                                    type="file" 
+                                    accept="application/pdf"
+                                    onChange={handleFileUpload}
+                                    className="block w-full text-sm text-gray-500
+                                    file:mr-4 file:py-3 file:px-6
+                                    file:rounded-full file:border-0
+                                    file:text-sm file:font-semibold
+                                    file:bg-blue-600 file:text-white
+                                    hover:file:bg-blue-700
+                                    cursor-pointer"
+                                />
+                            </label>
+                            
+                            {status === 'error' && (
+                                <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                                    {statusMsg}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen flex flex-col h-screen">
+                    {/* Header */}
+                    <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                                <Icon name="book-open" size={24} />
+                            </div>
+                            <div>
+                                <h1 className="font-bold text-gray-900">PDF Outliner</h1>
+                                <p className="text-xs text-gray-500 max-w-[200px] truncate">{file.name}</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button 
+                                type="button"
+                                onClick={() => setFile(null)} 
+                                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={handleSplit}
+                                disabled={selectedIds.size === 0 || status === 'processing'}
+                                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-white font-medium transition-all
+                                    ${selectedIds.size === 0 || status === 'processing' 
+                                        ? 'bg-gray-300 cursor-not-allowed' 
+                                        : 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200'}`}
+                            >
+                                {status === 'processing' ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icon name="scissors" size={18} />
+                                        Split & Download ({selectedIds.size})
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <div className="flex-1 overflow-hidden flex bg-white">
+                        <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full h-full border-x border-gray-100 shadow-sm">
+                            <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                <h2 className="font-semibold text-gray-700">Table of Contents</h2>
+                                <span className="text-xs bg-white px-2 py-1 rounded border border-gray-200 text-gray-500">
+                                    {outline.length} root items (Parent selects include children)
+                                </span>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                                {status === 'parsing' ? (
+                                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                                        <p>{statusMsg}</p>
+                                    </div>
+                                ) : outline.length > 0 ? (
+                                    <div className="space-y-1">
+                                        {outline.map((node) => (
+                                            <OutlineNode 
+                                                key={node.id} 
+                                                node={node} 
+                                                onToggle={toggleSelection} 
+                                                selectedIds={selectedIds} 
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center text-gray-400 mt-20">
+                                        No outline items found to display.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer Status */}
+                            {status === 'success' && (
+                                <div className="p-3 bg-green-50 text-green-700 text-center text-sm font-medium border-t border-green-100">
+                                    Files extracted successfully! Check your downloads.
+                                </div>
+                            )}
+                            {status === 'error' && (
+                                <div className="p-3 bg-red-50 text-red-700 text-center text-sm font-medium border-t border-red-100">
+                                    {statusMsg}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(
+            <ErrorBoundary>
+                <App />
+            </ErrorBoundary>
+        );
+    </script>
+</body>
+</html>
