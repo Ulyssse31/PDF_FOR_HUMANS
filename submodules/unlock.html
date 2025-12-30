@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unlock PDF — PDF for Humans</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-slate-900 via-yellow-900 to-slate-900 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const App = () => {
+            const [file, setFile] = useState(null);
+            const [password, setPassword] = useState('');
+            const [status, setStatus] = useState('idle');
+            const [error, setError] = useState('');
+
+            const handleFile = (f) => {
+                if (f && f.type === 'application/pdf') {
+                    setFile(f);
+                    setError('');
+                }
+            };
+
+            const unlock = async () => {
+                if (!file) return;
+
+                setStatus('processing');
+                setError('');
+
+                try {
+                    const { PDFDocument } = window.PDFLib;
+                    const arrayBuffer = await file.arrayBuffer();
+
+                    // Try to load with password
+                    const options = password ? { password } : { ignoreEncryption: true };
+                    const pdfDoc = await PDFDocument.load(arrayBuffer, options);
+
+                    // Save without encryption
+                    const pdfBytes = await pdfDoc.save();
+                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    const name = file.name.replace('.pdf', '_unlocked.pdf');
+                    window.saveAs(blob, name);
+
+                    setStatus('success');
+                    setTimeout(() => setStatus('idle'), 3000);
+                } catch (err) {
+                    console.error(err);
+                    if (err.message.includes('password') || err.message.includes('encrypted')) {
+                        setError('Incorrect password or PDF cannot be unlocked. Please try a different password.');
+                    } else {
+                        setError('Error unlocking PDF: ' + err.message);
+                    }
+                    setStatus('error');
+                }
+            };
+
+            return (
+                <div className="min-h-screen p-6">
+                    <div className="max-w-xl mx-auto">
+                        <a href="../index.html" className="inline-flex items-center gap-2 text-yellow-300 hover:text-white mb-4 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            Back to Tools
+                        </a>
+                        <h1 className="text-3xl font-bold text-white mb-2">Unlock PDF</h1>
+                        <p className="text-slate-400 mb-8">Remove password protection from your PDF.</p>
+
+                        {!file ? (
+                            <div
+                                onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
+                                onDragOver={(e) => e.preventDefault()}
+                                onClick={() => document.getElementById('file-input').click()}
+                                className="border-2 border-dashed border-slate-600 rounded-2xl p-12 text-center transition-all hover:border-yellow-500 cursor-pointer bg-slate-800/50 backdrop-blur"
+                            >
+                                <div className="text-6xl mb-4">🔓</div>
+                                <p className="text-white font-medium mb-2">Drop protected PDF here or click to browse</p>
+                                <input
+                                    id="file-input"
+                                    type="file"
+                                    accept="application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => handleFile(e.target.files[0])}
+                                />
+                            </div>
+                        ) : (
+                            <div className="bg-slate-800/80 backdrop-blur rounded-2xl p-6 border border-slate-700">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-3xl">🔐</div>
+                                        <div>
+                                            <p className="text-white font-medium truncate max-w-xs">{file.name}</p>
+                                            <p className="text-slate-400 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => { setFile(null); setPassword(''); setError(''); }}
+                                        className="text-slate-400 hover:text-white text-sm"
+                                    >
+                                        Change file
+                                    </button>
+                                </div>
+
+                                <div className="mb-6">
+                                    <label className="text-sm text-slate-300 mb-2 block">PDF Password (if required)</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="Enter the PDF password"
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-yellow-500"
+                                    />
+                                    <p className="text-slate-500 text-xs mt-2">Leave empty if the PDF only has restrictions (no open password)</p>
+                                </div>
+
+                                {error && (
+                                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-red-400 text-sm">
+                                        {error}
+                                    </div>
+                                )}
+
+                                {status === 'success' && (
+                                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mb-4 text-green-400 text-sm">
+                                        PDF unlocked successfully! Download started.
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={unlock}
+                                    disabled={status === 'processing'}
+                                    className="w-full py-4 bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 text-white font-semibold rounded-xl shadow-lg shadow-yellow-500/25 transition-all disabled:opacity-50"
+                                >
+                                    {status === 'processing' ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            Unlocking...
+                                        </span>
+                                    ) : 'Unlock PDF'}
+                                </button>
+
+                                <p className="text-slate-500 text-xs text-center mt-4">
+                                    You must know the password to unlock a password-protected PDF.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Colorizer — PDF for Humans</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-slate-900 via-fuchsia-900 to-slate-900 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const { useState, useRef, useEffect } = React;
+
+        const presets = [
+            { name: 'Dark Mode', bg: '#1a1a2e', text: '#e8e8e8', icon: '🌙' },
+            { name: 'Sepia', bg: '#f4ecd8', text: '#5c4033', icon: '📜' },
+            { name: 'Night Blue', bg: '#0d1b2a', text: '#a8dadc', icon: '🌌' },
+            { name: 'Green Tint', bg: '#1d3c34', text: '#d4edda', icon: '🌲' },
+            { name: 'Warm', bg: '#fff5eb', text: '#4a3728', icon: '☀️' },
+            { name: 'Invert', bg: '#000000', text: '#ffffff', icon: '🔄' },
+            { name: 'High Contrast', bg: '#000000', text: '#ffff00', icon: '⚡' },
+            { name: 'Custom', bg: null, text: null, icon: '🎨' },
+        ];
+
+        const App = () => {
+            const [file, setFile] = useState(null);
+            const [pdfDoc, setPdfDoc] = useState(null);
+            const [numPages, setNumPages] = useState(0);
+            const [currentPage, setCurrentPage] = useState(1);
+            const [selectedPreset, setSelectedPreset] = useState(presets[0]);
+            const [customBg, setCustomBg] = useState('#1a1a2e');
+            const [customText, setCustomText] = useState('#e8e8e8');
+            const [status, setStatus] = useState('idle');
+            const [progress, setProgress] = useState(0);
+            const canvasRef = useRef(null);
+
+            const getBgColor = () => selectedPreset.name === 'Custom' ? customBg : selectedPreset.bg;
+            const getTextColor = () => selectedPreset.name === 'Custom' ? customText : selectedPreset.text;
+
+            const handleFile = async (f) => {
+                if (!f || f.type !== 'application/pdf') return;
+
+                setFile(f);
+                setStatus('loading');
+
+                try {
+                    const arrayBuffer = await f.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    setPdfDoc(pdf);
+                    setNumPages(pdf.numPages);
+                    setCurrentPage(1);
+                    setStatus('idle');
+                } catch (err) {
+                    console.error(err);
+                    setStatus('error');
+                }
+            };
+
+            const renderPreview = async () => {
+                if (!pdfDoc || !canvasRef.current) return;
+
+                const page = await pdfDoc.getPage(currentPage);
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale });
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                // Render original
+                await page.render({ canvasContext: ctx, viewport }).promise;
+
+                // Apply color filter
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+
+                const bgColor = hexToRgb(getBgColor());
+                const textColor = hexToRgb(getTextColor());
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+
+                    // Calculate luminance
+                    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+                    // Blend between text color (dark areas) and bg color (light areas)
+                    data[i] = Math.round(textColor.r * (1 - luminance) + bgColor.r * luminance);
+                    data[i + 1] = Math.round(textColor.g * (1 - luminance) + bgColor.g * luminance);
+                    data[i + 2] = Math.round(textColor.b * (1 - luminance) + bgColor.b * luminance);
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+            };
+
+            useEffect(() => {
+                renderPreview();
+            }, [pdfDoc, currentPage, selectedPreset, customBg, customText]);
+
+            const hexToRgb = (hex) => {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : { r: 0, g: 0, b: 0 };
+            };
+
+            const applyToAll = async () => {
+                if (!pdfDoc) return;
+
+                setStatus('processing');
+                setProgress(0);
+
+                try {
+                    const { jsPDF } = window.jspdf;
+
+                    // Get first page to determine orientation
+                    const firstPage = await pdfDoc.getPage(1);
+                    const viewport = firstPage.getViewport({ scale: 2 });
+                    const isLandscape = viewport.width > viewport.height;
+
+                    const pdf = new jsPDF({
+                        orientation: isLandscape ? 'landscape' : 'portrait',
+                        unit: 'pt',
+                        format: [viewport.width / 2, viewport.height / 2]
+                    });
+
+                    for (let i = 1; i <= numPages; i++) {
+                        setProgress(Math.round((i / numPages) * 100));
+
+                        if (i > 1) {
+                            const page = await pdfDoc.getPage(i);
+                            const vp = page.getViewport({ scale: 2 });
+                            pdf.addPage([vp.width / 2, vp.height / 2], vp.width > vp.height ? 'landscape' : 'portrait');
+                        }
+
+                        const page = await pdfDoc.getPage(i);
+                        const vp = page.getViewport({ scale: 2 });
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = vp.width;
+                        canvas.height = vp.height;
+
+                        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+                        // Apply filter
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const data = imageData.data;
+                        const bgColor = hexToRgb(getBgColor());
+                        const textColor = hexToRgb(getTextColor());
+
+                        for (let j = 0; j < data.length; j += 4) {
+                            const luminance = (0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2]) / 255;
+                            data[j] = Math.round(textColor.r * (1 - luminance) + bgColor.r * luminance);
+                            data[j + 1] = Math.round(textColor.g * (1 - luminance) + bgColor.g * luminance);
+                            data[j + 2] = Math.round(textColor.b * (1 - luminance) + bgColor.b * luminance);
+                        }
+                        ctx.putImageData(imageData, 0, 0);
+
+                        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+                        pdf.addImage(imgData, 'JPEG', 0, 0, vp.width / 2, vp.height / 2);
+                    }
+
+                    const blob = pdf.output('blob');
+                    const name = file.name.replace('.pdf', `_${selectedPreset.name.toLowerCase().replace(' ', '_')}.pdf`);
+                    window.saveAs(blob, name);
+
+                    setStatus('success');
+                    setTimeout(() => setStatus('idle'), 3000);
+                } catch (err) {
+                    console.error(err);
+                    setStatus('error');
+                }
+            };
+
+            return (
+                <div className="min-h-screen p-6">
+                    <div className="max-w-5xl mx-auto">
+                        <a href="../index.html" className="inline-flex items-center gap-2 text-fuchsia-300 hover:text-white mb-4 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            Back to Tools
+                        </a>
+                        <h1 className="text-3xl font-bold text-white mb-2">PDF Colorizer</h1>
+                        <p className="text-slate-400 mb-8">Apply color themes to your PDF for better reading.</p>
+
+                        {!file ? (
+                            <div
+                                onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
+                                onDragOver={(e) => e.preventDefault()}
+                                onClick={() => document.getElementById('file-input').click()}
+                                className="border-2 border-dashed border-slate-600 rounded-2xl p-12 text-center transition-all hover:border-fuchsia-500 cursor-pointer bg-slate-800/50 backdrop-blur"
+                            >
+                                <div className="text-6xl mb-4">🎨</div>
+                                <p className="text-white font-medium mb-2">Drop PDF here or click to browse</p>
+                                <input id="file-input" type="file" accept="application/pdf" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
+                            </div>
+                        ) : (
+                            <div className="grid lg:grid-cols-2 gap-6">
+                                {/* Left: Preview */}
+                                <div className="bg-slate-800/80 backdrop-blur rounded-2xl p-4 border border-slate-700">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div>
+                                            <p className="text-white font-medium truncate">{file.name}</p>
+                                            <p className="text-slate-400 text-sm">Page {currentPage} of {numPages}</p>
+                                        </div>
+                                        <button onClick={() => { setFile(null); setPdfDoc(null); }} className="text-slate-400 hover:text-white text-sm">Change</button>
+                                    </div>
+
+                                    <div className="flex justify-center mb-4 bg-slate-900 rounded-lg p-4 max-h-[500px] overflow-auto">
+                                        <canvas ref={canvasRef} className="max-w-full h-auto rounded shadow-lg" />
+                                    </div>
+
+                                    <div className="flex justify-center gap-2">
+                                        <button
+                                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                            disabled={currentPage === 1}
+                                            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white rounded-lg"
+                                        >←</button>
+                                        <span className="px-4 py-2 text-slate-300">{currentPage} / {numPages}</span>
+                                        <button
+                                            onClick={() => setCurrentPage(Math.min(numPages, currentPage + 1))}
+                                            disabled={currentPage === numPages}
+                                            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white rounded-lg"
+                                        >→</button>
+                                    </div>
+                                </div>
+
+                                {/* Right: Controls */}
+                                <div className="space-y-6">
+                                    <div className="bg-slate-800/80 backdrop-blur rounded-2xl p-6 border border-slate-700">
+                                        <h2 className="text-white font-semibold mb-4">Color Presets</h2>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {presets.map(preset => (
+                                                <button
+                                                    key={preset.name}
+                                                    onClick={() => setSelectedPreset(preset)}
+                                                    className={`p-4 rounded-xl border-2 transition-all text-left ${selectedPreset.name === preset.name
+                                                            ? 'border-fuchsia-500 bg-fuchsia-500/10'
+                                                            : 'border-slate-600 hover:border-slate-500'
+                                                        }`}
+                                                >
+                                                    <span className="text-2xl mr-2">{preset.icon}</span>
+                                                    <span className="text-white">{preset.name}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {selectedPreset.name === 'Custom' && (
+                                        <div className="bg-slate-800/80 backdrop-blur rounded-2xl p-6 border border-slate-700">
+                                            <h2 className="text-white font-semibold mb-4">Custom Colors</h2>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-sm text-slate-300 mb-2 block">Background</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="color" value={customBg} onChange={(e) => setCustomBg(e.target.value)} className="w-12 h-12 rounded cursor-pointer" />
+                                                        <input type="text" value={customBg} onChange={(e) => setCustomBg(e.target.value)} className="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm" />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-sm text-slate-300 mb-2 block">Text/Foreground</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="color" value={customText} onChange={(e) => setCustomText(e.target.value)} className="w-12 h-12 rounded cursor-pointer" />
+                                                        <input type="text" value={customText} onChange={(e) => setCustomText(e.target.value)} className="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Progress */}
+                                    {status === 'processing' && (
+                                        <div className="bg-slate-800/80 backdrop-blur rounded-2xl p-4 border border-slate-700">
+                                            <div className="flex justify-between text-sm text-slate-300 mb-2">
+                                                <span>Processing pages...</span>
+                                                <span>{progress}%</span>
+                                            </div>
+                                            <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                                                <div className="h-full bg-gradient-to-r from-fuchsia-500 to-pink-500 transition-all" style={{ width: `${progress}%` }}></div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={applyToAll}
+                                        disabled={status === 'processing'}
+                                        className="w-full py-4 bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 text-white font-semibold rounded-xl shadow-lg shadow-fuchsia-500/25 transition-all disabled:opacity-50"
+                                    >
+                                        {status === 'processing' ? 'Processing...' : status === 'success' ? '✓ Download Started' : 'Apply & Download'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

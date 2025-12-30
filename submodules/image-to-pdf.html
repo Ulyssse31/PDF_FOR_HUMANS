@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to PDF — PDF for Humans</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .dragging {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-slate-900 via-pink-900 to-slate-900 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef } = React;
+
+        const App = () => {
+            const [images, setImages] = useState([]);
+            const [pageSize, setPageSize] = useState('a4');
+            const [orientation, setOrientation] = useState('portrait');
+            const [margin, setMargin] = useState(20);
+            const [status, setStatus] = useState('idle');
+            const [draggedIndex, setDraggedIndex] = useState(null);
+
+            const pageSizes = {
+                a4: { width: 595, height: 842 },
+                letter: { width: 612, height: 792 },
+                a3: { width: 842, height: 1191 },
+                fit: null
+            };
+
+            const handleFiles = (files) => {
+                const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+
+                imageFiles.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        setImages(prev => [...prev, {
+                            id: `${file.name}-${Date.now()}-${Math.random()}`,
+                            name: file.name,
+                            dataUrl: e.target.result,
+                            file
+                        }]);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            };
+
+            const removeImage = (id) => {
+                setImages(prev => prev.filter(img => img.id !== id));
+            };
+
+            const handleDragStart = (e, index) => {
+                setDraggedIndex(index);
+                e.currentTarget.classList.add('dragging');
+            };
+
+            const handleDragEnd = (e) => {
+                e.currentTarget.classList.remove('dragging');
+                setDraggedIndex(null);
+            };
+
+            const handleDragOver = (e, index) => {
+                e.preventDefault();
+                if (draggedIndex === null || draggedIndex === index) return;
+
+                const newImages = [...images];
+                const draggedImage = newImages[draggedIndex];
+                newImages.splice(draggedIndex, 1);
+                newImages.splice(index, 0, draggedImage);
+                setImages(newImages);
+                setDraggedIndex(index);
+            };
+
+            const convertToPdf = async () => {
+                if (images.length === 0) return;
+
+                setStatus('processing');
+
+                try {
+                    const { PDFDocument } = window.PDFLib;
+                    const pdfDoc = await PDFDocument.create();
+
+                    for (const img of images) {
+                        const arrayBuffer = await img.file.arrayBuffer();
+                        let pdfImage;
+
+                        if (img.file.type === 'image/png') {
+                            pdfImage = await pdfDoc.embedPng(arrayBuffer);
+                        } else {
+                            pdfImage = await pdfDoc.embedJpg(arrayBuffer);
+                        }
+
+                        let pageWidth, pageHeight;
+
+                        if (pageSize === 'fit') {
+                            pageWidth = pdfImage.width + (margin * 2);
+                            pageHeight = pdfImage.height + (margin * 2);
+                        } else {
+                            const size = pageSizes[pageSize];
+                            if (orientation === 'portrait') {
+                                pageWidth = size.width;
+                                pageHeight = size.height;
+                            } else {
+                                pageWidth = size.height;
+                                pageHeight = size.width;
+                            }
+                        }
+
+                        const page = pdfDoc.addPage([pageWidth, pageHeight]);
+
+                        const availWidth = pageWidth - (margin * 2);
+                        const availHeight = pageHeight - (margin * 2);
+
+                        const scale = Math.min(availWidth / pdfImage.width, availHeight / pdfImage.height);
+                        const scaledWidth = pdfImage.width * scale;
+                        const scaledHeight = pdfImage.height * scale;
+
+                        const x = (pageWidth - scaledWidth) / 2;
+                        const y = (pageHeight - scaledHeight) / 2;
+
+                        page.drawImage(pdfImage, {
+                            x, y,
+                            width: scaledWidth,
+                            height: scaledHeight
+                        });
+                    }
+
+                    const pdfBytes = await pdfDoc.save();
+                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    window.saveAs(blob, 'images.pdf');
+
+                    setStatus('success');
+                    setTimeout(() => setStatus('idle'), 3000);
+                } catch (err) {
+                    console.error(err);
+                    setStatus('error');
+                }
+            };
+
+            return (
+                <div className="min-h-screen p-6">
+                    <div className="max-w-4xl mx-auto">
+                        <a href="../index.html" className="inline-flex items-center gap-2 text-pink-300 hover:text-white mb-4 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            Back to Tools
+                        </a>
+                        <h1 className="text-3xl font-bold text-white mb-2">Image to PDF</h1>
+                        <p className="text-slate-400 mb-8">Convert images to a PDF document. Drag to reorder.</p>
+
+                        {/* Drop Zone */}
+                        <div
+                            onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onClick={() => document.getElementById('file-input').click()}
+                            className="border-2 border-dashed border-slate-600 rounded-2xl p-8 text-center transition-all hover:border-pink-500 cursor-pointer bg-slate-800/50 backdrop-blur mb-6"
+                        >
+                            <div className="text-5xl mb-4">📄</div>
+                            <p className="text-white font-medium mb-2">Drop images here or click to browse</p>
+                            <p className="text-slate-400 text-sm">Supports JPG, PNG, WebP</p>
+                            <input
+                                id="file-input"
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => handleFiles(e.target.files)}
+                            />
+                        </div>
+
+                        {/* Images Grid */}
+                        {images.length > 0 && (
+                            <div className="bg-slate-800/80 backdrop-blur rounded-2xl p-6 border border-slate-700 mb-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-white font-semibold">{images.length} images</h2>
+                                    <button onClick={() => setImages([])} className="text-slate-400 hover:text-white text-sm">Clear all</button>
+                                </div>
+
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mb-6">
+                                    {images.map((img, index) => (
+                                        <div
+                                            key={img.id}
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            onDragOver={(e) => handleDragOver(e, index)}
+                                            className="relative group cursor-grab active:cursor-grabbing"
+                                        >
+                                            <img src={img.dataUrl} alt={img.name} className="w-full h-24 object-cover rounded-lg border border-slate-600" />
+                                            <span className="absolute bottom-1 left-1 text-xs bg-black/70 px-1.5 py-0.5 rounded text-white">{index + 1}</span>
+                                            <button
+                                                onClick={() => removeImage(img.id)}
+                                                className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >×</button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Options */}
+                                <div className="grid grid-cols-3 gap-4 mb-6">
+                                    <div>
+                                        <label className="text-sm text-slate-300 mb-2 block">Page Size</label>
+                                        <select
+                                            value={pageSize}
+                                            onChange={(e) => setPageSize(e.target.value)}
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                                        >
+                                            <option value="a4">A4</option>
+                                            <option value="letter">Letter</option>
+                                            <option value="a3">A3</option>
+                                            <option value="fit">Fit to image</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm text-slate-300 mb-2 block">Orientation</label>
+                                        <select
+                                            value={orientation}
+                                            onChange={(e) => setOrientation(e.target.value)}
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                                            disabled={pageSize === 'fit'}
+                                        >
+                                            <option value="portrait">Portrait</option>
+                                            <option value="landscape">Landscape</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm text-slate-300 mb-2 block">Margin (px)</label>
+                                        <input
+                                            type="number"
+                                            value={margin}
+                                            onChange={(e) => setMargin(parseInt(e.target.value) || 0)}
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={convertToPdf}
+                                    disabled={status === 'processing'}
+                                    className="w-full py-4 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-semibold rounded-xl shadow-lg shadow-pink-500/25 transition-all disabled:opacity-50"
+                                >
+                                    {status === 'processing' ? 'Converting...' : status === 'success' ? '✓ Download Started' : 'Create PDF'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

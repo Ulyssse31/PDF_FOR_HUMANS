@@ -1,272 +1,659 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>PDF for Humans — Modules</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF for Humans — Free Online PDF Tools</title>
+    <meta name="description"
+        content="Free online PDF tools for everyone. Merge, split, compress, convert, rotate, and edit PDFs with ease.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        :root{
-            --bg:#0f1720; --card:#111827; --muted:#9aa4b2; --accent:#7c3aed; --glass: rgba(255,255,255,0.03);
-            color-scheme: dark;
+        :root {
+            --bg-dark: #0a0f1c;
+            --bg-card: rgba(15, 23, 42, 0.7);
+            --bg-card-hover: rgba(25, 35, 60, 0.85);
+            --accent: #8b5cf6;
+            --accent-glow: rgba(139, 92, 246, 0.4);
+            --accent-alt: #06b6d4;
+            --accent-alt-glow: rgba(6, 182, 212, 0.3);
+            --text: #f0f4ff;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+            --glass: rgba(255, 255, 255, 0.03);
         }
-        *{box-sizing:border-box}
-        html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;color:#e6eef8;background:linear-gradient(180deg,#071021 0%, #071426 100%);}
-        .app{display:grid;grid-template-columns:260px 1fr;gap:20px;height:100vh;padding:20px}
-        .sidebar{background:var(--card);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;min-height:0}
-        .brand{display:flex;gap:12px;align-items:center}
-        .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#4f46e5);display:flex;align-items:center;justify-content:center;font-weight:700;color:white}
-        h1{font-size:16px;margin:0}
-        p.sub{color:var(--muted);margin:0;font-size:12px}
-        .nav{display:flex;flex-direction:column;gap:6px;margin-top:6px;overflow:auto;padding-right:6px}
-        .nav button{appearance:none;border:0;background:transparent;padding:10px;border-radius:8px;color:var(--muted);text-align:left;display:flex;gap:10px;align-items:center;cursor:pointer}
-        .nav button.active{background:linear-gradient(90deg,rgba(124,58,237,0.12),transparent);color:#eaf2ff}
-        .nav svg{opacity:.9}
-        .main{display:flex;flex-direction:column;gap:16px;min-width:0}
-        .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
-        .controls{display:flex;gap:8px;align-items:center}
-        .btn{background:var(--glass);border:1px solid rgba(255,255,255,0.03);padding:8px 12px;border-radius:10px;color:#dcebf9;cursor:pointer}
-        .drop{flex:1;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:12px;padding:14px;border:1px dashed rgba(255,255,255,0.03);display:flex;flex-direction:column;gap:10px;align-items:flex-start;min-height:84px}
-        .modules-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
-        .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:12px;border-radius:10px;color:#eaf2ff;display:flex;flex-direction:column;gap:8px}
-        .card small{color:var(--muted)}
-        .stage{background:var(--card);border-radius:12px;padding:12px;flex:1;min-height:0;display:flex;flex-direction:column}
-        .iframe-wrap{background:#051021;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.03);flex:1;display:flex;min-height:0}
-        iframe{width:100%;height:100%;border:0;display:block}
-        .footer{color:var(--muted);font-size:12px;padding-top:6px}
-        input[type=file]{display:none}
-        @media (max-width:900px){
-            .app{grid-template-columns:1fr; padding:14px}
-            .sidebar{order:2}
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 100% 0%, rgba(6, 182, 212, 0.1), transparent),
+                radial-gradient(ellipse 50% 30% at 0% 100%, rgba(139, 92, 246, 0.08), transparent);
+            z-index: -1;
+        }
+
+        /* Floating Orbs Animation */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s ease-in-out infinite;
+            z-index: -1;
+        }
+
+        .orb-1 {
+            width: 400px;
+            height: 400px;
+            background: var(--accent);
+            top: -100px;
+            right: -100px;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 300px;
+            height: 300px;
+            background: var(--accent-alt);
+            bottom: -50px;
+            left: -50px;
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            25% {
+                transform: translate(30px, -30px) scale(1.05);
+            }
+
+            50% {
+                transform: translate(-20px, 20px) scale(0.95);
+            }
+
+            75% {
+                transform: translate(20px, 10px) scale(1.02);
+            }
+        }
+
+        /* Header */
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(20px);
+            background: rgba(10, 15, 28, 0.8);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.75rem;
+            color: white;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text), var(--accent-alt));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 10rem 2rem 4rem;
+            text-align: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .hero-badge-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--text) 0%, var(--accent) 50%, var(--accent-alt) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.875rem 1.75rem;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--accent-glow);
+        }
+
+        .btn-secondary {
+            background: var(--glass);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card);
+            border-color: var(--accent);
+        }
+
+        /* Tools Section */
+        .tools-section {
+            padding: 2rem 2rem 6rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .section-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-header p {
+            color: var(--text-muted);
+        }
+
+        /* Tool Cards Grid */
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .tool-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.75rem;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--accent-glow), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border-radius: 20px;
+        }
+
+        .tool-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--accent);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 60px var(--accent-glow);
+        }
+
+        .tool-card:hover::before {
+            opacity: 1;
+        }
+
+        .tool-card-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .tool-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .tool-card h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .tool-card p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .tool-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .tool-feature {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.625rem;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            color: var(--text-muted);
+        }
+
+        /* Icon Color Themes */
+        .icon-split {
+            background: linear-gradient(135deg, #f97316, #fb923c);
+        }
+
+        .icon-merge {
+            background: linear-gradient(135deg, #3b82f6, #60a5fa);
+        }
+
+        .icon-compress {
+            background: linear-gradient(135deg, #22c55e, #4ade80);
+        }
+
+        .icon-pdf-img {
+            background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+        }
+
+        .icon-img-pdf {
+            background: linear-gradient(135deg, #ec4899, #f472b6);
+        }
+
+        .icon-rotate {
+            background: linear-gradient(135deg, #06b6d4, #22d3ee);
+        }
+
+        .icon-protect {
+            background: linear-gradient(135deg, #ef4444, #f87171);
+        }
+
+        .icon-unlock {
+            background: linear-gradient(135deg, #eab308, #facc15);
+        }
+
+        .icon-colorize {
+            background: linear-gradient(135deg, #d946ef, #e879f9);
+        }
+
+        .icon-academic {
+            background: linear-gradient(135deg, #14b8a6, #2dd4bf);
+        }
+
+        /* Specialty Section */
+        .specialty-section {
+            margin-top: 4rem;
+        }
+
+        .specialty-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .specialty-badge {
+            background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+            padding: 0.375rem 0.875rem;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .specialty-header h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* Footer */
+        footer {
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            border-top: 1px solid var(--border);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header {
+                padding: 1rem;
+            }
+
+            .hero {
+                padding: 8rem 1.5rem 3rem;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .tools-section {
+                padding: 1.5rem;
+            }
+
+            .tools-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tool-card {
+                padding: 1.25rem;
+            }
         }
     </style>
 </head>
+
 <body>
-    <div class="app">
-        <aside class="sidebar" aria-label="Modules">
-            <div class="brand">
-                <div class="logo">PDF</div>
-                <div>
-                    <h1>PDF for Humans</h1>
-                    <p class="sub">modular PDF tools</p>
+    <div class="bg-gradient"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <header>
+        <div class="logo">
+            <div class="logo-icon">PDF</div>
+            <span class="logo-text">PDF for Humans</span>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="hero-badge">
+                <span class="hero-badge-dot"></span>
+                100% Free & Private — All processing happens in your browser
+            </div>
+            <h1>Every PDF Tool You Need, Right Here</h1>
+            <p>Merge, split, compress, convert, and transform your PDFs with powerful tools that work entirely in your
+                browser. No uploads, no limits.</p>
+            <div class="hero-cta">
+                <a href="#tools" class="btn btn-primary">Explore Tools</a>
+                <a href="#specialty" class="btn btn-secondary">✨ Specialty Tools</a>
+            </div>
+        </section>
+
+        <section id="tools" class="tools-section">
+            <div class="section-header">
+                <h2>Essential PDF Tools</h2>
+                <p>Everything you need to work with PDF documents</p>
+            </div>
+
+            <div class="tools-grid">
+                <a href="submodules/divisor.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-split">✂️</div>
+                        <h3>Split PDF</h3>
+                        <p>Divide your PDF into multiple documents by page range or outline structure.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">By Outline</span>
+                            <span class="tool-feature">Page Range</span>
+                            <span class="tool-feature">Extract Pages</span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="submodules/merger.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-merge">📑</div>
+                        <h3>Merge PDF</h3>
+                        <p>Combine multiple PDF files into a single document with drag-and-drop reordering.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">Drag Reorder</span>
+                            <span class="tool-feature">Preview</span>
+                            <span class="tool-feature">Batch Merge</span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="submodules/compressor.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-compress">📦</div>
+                        <h3>Compress PDF</h3>
+                        <p>Reduce PDF file size while maintaining quality. Perfect for sharing.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">Quality Presets</span>
+                            <span class="tool-feature">Size Preview</span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="submodules/pdf-to-image.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-pdf-img">🖼️</div>
+                        <h3>PDF to Image</h3>
+                        <p>Convert PDF pages to high-quality PNG or JPG images.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">PNG/JPG</span>
+                            <span class="tool-feature">Custom DPI</span>
+                            <span class="tool-feature">Batch Export</span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="submodules/image-to-pdf.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-img-pdf">📄</div>
+                        <h3>Image to PDF</h3>
+                        <p>Convert images to a PDF document. Supports JPG, PNG, WebP, and more.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">Drag Reorder</span>
+                            <span class="tool-feature">Page Size</span>
+                            <span class="tool-feature">Margins</span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="submodules/rotate.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-rotate">🔄</div>
+                        <h3>Rotate PDF</h3>
+                        <p>Rotate PDF pages by 90°, 180°, or 270°. Fix orientation issues easily.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">Per-Page</span>
+                            <span class="tool-feature">Visual Preview</span>
+                            <span class="tool-feature">Flip</span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="submodules/protect.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-protect">🔒</div>
+                        <h3>Protect PDF</h3>
+                        <p>Add password protection to secure your PDF documents.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">Password</span>
+                            <span class="tool-feature">Permissions</span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="submodules/unlock.html" class="tool-card">
+                    <div class="tool-card-content">
+                        <div class="tool-icon icon-unlock">🔓</div>
+                        <h3>Unlock PDF</h3>
+                        <p>Remove password protection from your PDF (password required).</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">Remove Password</span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Specialty Tools -->
+            <div id="specialty" class="specialty-section">
+                <div class="specialty-header">
+                    <span class="specialty-badge">✨ NEW</span>
+                    <h3>Specialty Tools</h3>
                 </div>
-            </div>
 
-            <div style="margin-top:6px" class="controls">
-                <label class="btn" for="file">Upload PDF</label>
-                <input id="file" type="file" accept="application/pdf" />
-                <button class="btn" id="toggle-theme" title="Toggle theme">Theme</button>
-            </div>
-
-            <nav class="nav" id="modules">
-                <button data-module="divisor" class="active" title="Split pages into new files">
-                    <!-- svg icon -->
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-                    Divisor
-                </button>
-                <button data-module="merger" title="Merge multiple PDFs">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7h18v10H3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-                    Merger
-                </button>
-                <button data-module="compressor" title="Compress files">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-                    Compressor
-                </button>
-                <button data-module="editor" title="Edit pages, annotate">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 21l6-6 9-9 3 3-9 9-6 6H3z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    Editor
-                </button>
-                <button data-module="signer" title="Sign PDF">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 12h18M8 8l5 8 3-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    Signer
-                </button>
-                <button data-module="ocr" title="OCR / extract text">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 18h16M9 6v12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    OCR
-                </button>
-                <button data-module="metadata" title="Edit metadata">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-                    Metadata
-                </button>
-            </nav>
-
-            <div class="footer">Submodules are kept in ./submodules/*.html — click a module to load it</div>
-        </aside>
-
-        <main class="main">
-            <div class="topbar">
-                <div style="display:flex;gap:12px;align-items:center;flex:1">
-                    <div class="drop" id="dropzone" aria-label="Drop PDF here">
-                        <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
-                            <div>
-                                <strong id="file-name">No file selected</strong>
-                                <div class="sub" style="margin-top:4px">Drag & drop a PDF or use Upload</div>
+                <div class="tools-grid">
+                    <a href="submodules/colorizer.html" class="tool-card">
+                        <div class="tool-card-content">
+                            <div class="tool-icon icon-colorize">🎨</div>
+                            <h3>PDF Colorizer</h3>
+                            <p>Change PDF colors for better reading. Apply dark mode, sepia, or custom themes.</p>
+                            <div class="tool-features">
+                                <span class="tool-feature">Dark Mode</span>
+                                <span class="tool-feature">Sepia</span>
+                                <span class="tool-feature">Invert</span>
+                                <span class="tool-feature">Custom Colors</span>
                             </div>
-                            <div style="display:flex;gap:8px;align-items:center">
-                                <button class="btn" id="clear-file">Clear</button>
-                                <button class="btn" id="open-in-new" title="Open module in a new window">Open</button>
+                        </div>
+                    </a>
+
+                    <a href="submodules/academic.html" class="tool-card">
+                        <div class="tool-card-content">
+                            <div class="tool-icon icon-academic">📚</div>
+                            <h3>Academic Highlighter</h3>
+                            <p>Auto-detect and color-code definitions, theorems, lemmas, and proofs in textbooks.</p>
+                            <div class="tool-features">
+                                <span class="tool-feature">Definitions</span>
+                                <span class="tool-feature">Theorems</span>
+                                <span class="tool-feature">Lemmas</span>
+                                <span class="tool-feature">Proofs</span>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div class="controls">
-                    <div class="sub">Active module:</div>
-                    <div id="activeModule" style="min-width:120px;text-align:right;font-weight:600;color:#eaf2ff">Divisor</div>
+                    </a>
                 </div>
             </div>
+        </section>
+    </main>
 
-            <section class="stage">
-                <div class="modules-grid" style="margin-bottom:10px">
-                    <div class="card">
-                        <div style="display:flex;justify-content:space-between;align-items:center">
-                            <strong>Quick actions</strong>
-                        </div>
-                        <small>Open the selected module in the panel or a new window. Modules receive uploaded PDF via postMessage (object URL).</small>
-                        <div style="display:flex;gap:8px;margin-top:8px">
-                            <button class="btn" id="open-panel">Open in panel</button>
-                            <button class="btn" id="open-window">Open in window</button>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <strong>Module status</strong>
-                        <small id="module-status">Loaded: divisor</small>
-                    </div>
-
-                    <div class="card">
-                        <strong>Notes</strong>
-                        <small>Drop a PDF to start. If a submodule exists at /submodules/{name}.html it will be loaded into the iframe.</small>
-                    </div>
-                </div>
-
-                <div class="iframe-wrap" id="module-stage">
-                    <iframe id="module-frame" src="submodules/divisor.html" title="PDF module"></iframe>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <script>
-        // Minimal client-side module loader + file relay
-        (function(){
-            const modulesNav = document.getElementById('modules');
-            const buttons = modulesNav.querySelectorAll('button[data-module]');
-            const frame = document.getElementById('module-frame');
-            const activeLabel = document.getElementById('activeModule');
-            const status = document.getElementById('module-status');
-            const fileInput = document.getElementById('file');
-            const dropzone = document.getElementById('dropzone');
-            const fileName = document.getElementById('file-name');
-            const clearBtn = document.getElementById('clear-file');
-            const openInNew = document.getElementById('open-in-new');
-            const openWindowBtn = document.getElementById('open-window');
-            const openPanelBtn = document.getElementById('open-panel');
-
-            let currentModule = 'divisor';
-            let uploaded = null; // File object
-            let objectUrl = null;
-            let externalWindow = null;
-
-            function setActive(module){
-                currentModule = module;
-                buttons.forEach(b => b.classList.toggle('active', b.dataset.module === module));
-                frame.src = 'submodules/' + module + '.html';
-                activeLabel.textContent = module[0].toUpperCase() + module.slice(1);
-                status.textContent = 'Loaded: ' + module;
-            }
-
-            modulesNav.addEventListener('click', e => {
-                const btn = e.target.closest('button[data-module]');
-                if(!btn) return;
-                setActive(btn.dataset.module);
-            });
-
-            // File handling
-            function relayFileToModule(){
-                if(!uploaded) return;
-                if(objectUrl) URL.revokeObjectURL(objectUrl);
-                objectUrl = URL.createObjectURL(uploaded);
-                // If iframe is loaded, postMessage the URL and filename
-                const payload = {type:'file', url: objectUrl, name: uploaded.name, size: uploaded.size};
-                // send to iframe and to any external window
-                try { frame.contentWindow.postMessage(payload, '*'); } catch(e){}
-                if(externalWindow && !externalWindow.closed){
-                    try { externalWindow.postMessage(payload, '*'); } catch(e){}
-                }
-            }
-
-            fileInput.addEventListener('change', e => {
-                if(!e.target.files || !e.target.files[0]) return;
-                uploaded = e.target.files[0];
-                fileName.textContent = uploaded.name;
-                relayFileToModule();
-            });
-
-            // drag & drop
-            ['dragenter','dragover','dragleave','drop'].forEach(ev => {
-                dropzone.addEventListener(ev, e => e.preventDefault());
-            });
-            dropzone.addEventListener('drop', e => {
-                const f = e.dataTransfer.files && e.dataTransfer.files[0];
-                if(f && f.type === 'application/pdf'){
-                    uploaded = f;
-                    fileName.textContent = f.name;
-                    relayFileToModule();
-                } else {
-                    alert('Please drop a PDF file.');
-                }
-            });
-
-            clearBtn.addEventListener('click', () => {
-                uploaded = null;
-                fileName.textContent = 'No file selected';
-                if(objectUrl){ URL.revokeObjectURL(objectUrl); objectUrl = null; }
-                // notify modules
-                const msg = {type:'clear'};
-                try { frame.contentWindow.postMessage(msg, '*'); } catch(e){}
-                if(externalWindow && !externalWindow.closed) externalWindow.postMessage(msg, '*');
-            });
-
-            // open active module in a new window
-            openInNew.addEventListener('click', () => {
-                const url = 'submodules/' + currentModule + '.html';
-                window.open(url, '_blank');
-            });
-
-            openWindowBtn.addEventListener('click', () => {
-                const url = 'submodules/' + currentModule + '.html';
-                externalWindow = window.open(url, 'pdf-module-' + currentModule, 'width=1000,height=700');
-                // send file a short time later (external window needs to load)
-                setTimeout(() => { if(uploaded) relayFileToModule(); }, 600);
-            });
-
-            openPanelBtn.addEventListener('click', () => {
-                setActive(currentModule);
-            });
-
-            // receive messages from modules (e.g., requests)
-            window.addEventListener('message', e => {
-                const msg = e.data || {};
-                if(msg && msg.type === 'request-file'){
-                    // modules can ask for the current file
-                    relayFileToModule();
-                }
-            });
-
-            // toggle theme (very simple)
-            document.getElementById('toggle-theme').addEventListener('click', () => {
-                // For now we only support dark, placeholder for future light mode
-                alert('Theme toggle placeholder — implement light mode here if desired.');
-            });
-
-            // If the iframe is already loaded and a file exists, relay it
-            frame.addEventListener('load', () => {
-                if(uploaded) relayFileToModule();
-            });
-
-            // initialize
-            setActive('divisor');
-        })();
-    </script>
+    <footer>
+        <p>Made with ❤️ for humans who work with PDFs · <a href="https://github.com" target="_blank">Open Source</a></p>
+    </footer>
 </body>
-</html></button>
+
+</html>
